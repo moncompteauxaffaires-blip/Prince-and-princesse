@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prince & Princesse - L'Aventure Royale</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        #gameContainer {
+            width: 100%;
+            max-width: 900px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid #FFD700;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 600px;
+            background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
+            border: 2px solid #FFD700;
+            border-radius: 10px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .info-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            color: #FFD700;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .lives {
+            display: flex;
+            gap: 10px;
+        }
+
+        .heart {
+            font-size: 24px;
+            color: #FF1744;
+        }
+
+        .heart.empty {
+            color: #555;
+        }
+
+        .kingdom-info {
+            text-align: center;
+            color: #FFD700;
+            margin-top: 10px;
+            font-size: 18px;
+        }
+
+        .sword-info {
+            text-align: center;
+            color: #87CEEB;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+
+        .controls {
+            text-align: center;
+            color: #FFD700;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        #gameOver {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 3px solid #FFD700;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            z-index: 1000;
+            min-width: 300px;
+        }
+
+        #gameOver h1 {
+            color: #FFD700;
+            margin-bottom: 20px;
+            font-size: 36px;
+        }
+
+        #gameOver p {
+            color: #87CEEB;
+            margin: 15px 0;
+            font-size: 18px;
+        }
+
+        #gameOver button {
+            background: #FFD700;
+            color: #000;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        #gameOver button:hover {
+            background: #FFC700;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div class="info-panel">
+            <div class="lives" id="livesDisplay"></div>
+            <div class="kingdom-info" id="kingdomInfo">Royaume 1/7</div>
+            <div class="sword-info" id="swordInfo">Épée: Bois</div>
+        </div>
+        <div class="controls">
+            <p>⬅️ Flèche Gauche = Attaque | ➡️ Flèche Droite = Défense</p>
+        </div>
+    </div>
+
+    <div id="gameOver">
+        <h1 id="gameOverTitle">DÉFAITE!</h1>
+        <p id="gameOverMessage"></p>
+        <button onclick="location.reload()">Recommencer</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Redimensionner le canvas
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+
+        // Données du jeu
+        const game = {
+            currentKingdom: 0,
+            lives: 3,
+            maxLives: 3,
+            sword: 0,
+            gameOver: false,
+            playerWon: false
+        };
+
+        // Royaumes avec leurs caractéristiques
+        const kingdoms = [
+            { name: 'Forêt Enchantée', color: '#2d5016', bossName: 'Gobelin', sword: 'Épée de Bois' },
+            { name: 'Montagne Gelée', color: '#87CEEB', bossName: 'Ogre Blanc', sword: 'Épée de Glace' },
+            { name: 'Caverne Sombre', color: '#4a4a4a', bossName: 'Troll des Ombres', sword: 'Épée de Fer' },
+            { name: 'Château de Pierre', color: '#8B7355', bossName: 'Chevalier Noir', sword: 'Épée d\'Acier' },
+            { name: 'Désert Brûlant', color: '#DAA520', bossName: 'Djinn', sword: 'Épée de Feu' },
+            { name: 'Île Mystérieuse', color: '#1E90FF', bossName: 'Sorcier Marin', sword: 'Épée Magique' },
+            { name: 'Forteresse Maléfique', color: '#2F4F4F', bossName: 'Seigneur des Ombres', sword: 'Épée Légendaire' }
+        ];
+
+        // Entités du jeu
+        const player = {
+            x: 100,
+            y: 0,
+            width: 40,
+            height: 60,
+            health: 100,
+            maxHealth: 100,
+            attacking: false,
+            defending: false,
+            mana: 100,
+            maxMana: 100
+        };
+
+        const boss = {
+            x: 0,
+            y: 0,
+            width: 50,
+            height: 70,
+            health: 100,
+            maxHealth: 100,
+            attacking: false,
+            turn: 0
+        };
+
+        // Initialiser le positionnement verticalement
+        function initPositions() {
+            player.y = canvas.height - 150;
+            boss.x = canvas.width - 150;
+            boss.y = canvas.height - 170;
+            
+            // Santé du boss selon le royaume
+            const healthMultiplier = 1 + (game.currentKingdom * 0.3);
+            boss.maxHealth = Math.floor(100 * healthMultiplier);
+            boss.health = boss.maxHealth;
+        }
+
+        // Afficher les cœurs de vie
+        function updateLivesDisplay() {
+            const livesDisplay = document.getElementById('livesDisplay');
+            livesDisplay.innerHTML = '';
+            for (let i = 0; i < game.maxLives; i++) {
+                const heart = document.createElement('div');
+                heart.className = 'heart' + (i < game.lives ? '' : ' empty');
+                heart.innerHTML = '❤️';
+                livesDisplay.appendChild(heart);
+            }
+        }
+
+        // Mettre à jour les infos
+        function updateInfo() {
+            document.getElementById('kingdomInfo').textContent = `${kingdoms[game.currentKingdom].name} (${game.currentKingdom + 1}/7)`;
+            document.getElementById('swordInfo').textContent = `Épée: ${kingdoms[game.currentKingdom].sword} | Boss: ${kingdoms[game.currentKingdom].bossName}`;
+            updateLivesDisplay();
+        }
+
+        // Dessiner le prince
+        function drawPrince() {
+            ctx.save();
+            
+            // Tête
+            ctx.fillStyle = '#FDBCB4';
+            ctx.beginPath();
+            ctx.arc(player.x + 20, player.y + 15, 12, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Yeux
+            ctx.fillStyle = '#000';
+            ctx.fillRect(player.x + 16, player.y + 12, 3, 3);
+            ctx.fillRect(player.x + 26, player.y + 12, 3, 3);
+            
+            // Couronne
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(player.x + 12, player.y - 3, 16, 8);
+            ctx.fillRect(player.x + 14, player.y - 5, 3, 3);
+            ctx.fillRect(player.x + 22, player.y - 5, 3, 3);
+            ctx.fillRect(player.x + 19, player.y - 6, 2, 2);
+            
+            // Corps
+            ctx.fillStyle = '#FF0000';
+            ctx.fillRect(player.x + 10, player.y + 28, 20, 20);
+            
+            // Bras
+            ctx.fillStyle = '#FDBCB4';
+            ctx.fillRect(player.x + 5, player.y + 30, 5, 18);
+            ctx.fillRect(player.x + 35, player.y + 30, 5, 18);
+            
+            // Jambes
+            ctx.fillStyle = '#333';
+            ctx.fillRect(player.x + 12, player.y + 48, 5, 12);
+            ctx.fillRect(player.x + 23, player.y + 48, 5, 12);
+            
+            // Épée
+            if (player.attacking) {
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(player.x + 40, player.y + 35);
+                ctx.lineTo(player.x + 70, player.y + 25);
+                ctx.stroke();
+            }
+            
+            ctx.restore();
+        }
+
+        // Dessiner le boss
+        function drawBoss() {
+            ctx.save();
+            
+            // Choisir l'apparence selon le royaume
+            switch(game.currentKingdom) {
+                case 0: // Gobelin
+                    ctx.fillStyle = '#228B22';
+                    ctx.beginPath();
+                    ctx.arc(boss.x + 25, boss.y + 15, 14, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(boss.x + 20, boss.y + 12, 3, 4);
+                    ctx.fillRect(boss.x + 30, boss.y + 12, 3, 4);
+                    break;
+                case 1: // Ogre Blanc
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(boss.x + 10, boss.y, 30, 50);
+                    ctx.fillStyle = '#87CEEB';
+                    ctx.fillRect(boss.x + 12, boss.y + 5, 8, 10);
+                    ctx.fillRect(boss.x + 30, boss.y + 5, 8, 10);
+                    break;
+                case 2: // Troll
+                    ctx.fillStyle = '#696969';
+                    ctx.fillRect(boss.x + 8, boss.y + 10, 34, 40);
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(boss.x + 15, boss.y + 15, 5, 5);
+                    ctx.fillRect(boss.x + 30, boss.y + 15, 5, 5);
+                    break;
+                case 3: // Chevalier Noir
+                    ctx.fillStyle = '#1C1C1C';
+                    ctx.fillRect(boss.x + 12, boss.y + 5, 26, 45);
+                    ctx.fillStyle = '#FFD700';
+                    ctx.fillRect(boss.x + 10, boss.y + 3, 30, 8);
+                    break;
+                case 4: // Djinn
+                    ctx.fillStyle = '#FF8C00';
+                    ctx.beginPath();
+                    ctx.arc(boss.x + 25, boss.y + 25, 20, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#FFA500';
+                    ctx.beginPath();
+                    ctx.arc(boss.x + 25, boss.y + 25, 15, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                case 5: // Sorcier Marin
+                    ctx.fillStyle = '#4169E1';
+                    ctx.beginPath();
+                    ctx.arc(boss.x + 25, boss.y + 20, 16, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#00BFFF';
+                    ctx.fillRect(boss.x + 5, boss.y + 35, 40, 20);
+                    break;
+                case 6: // Seigneur des Ombres (boss final)
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(boss.x + 5, boss.y, 40, 55);
+                    ctx.fillStyle = '#FF0000';
+                    ctx.fillRect(boss.x + 15, boss.y + 10, 8, 8);
+                    ctx.fillRect(boss.x + 27, boss.y + 10, 8, 8);
+                    ctx.fillStyle = '#FFD700';
+                    ctx.fillRect(boss.x + 8, boss.y - 5, 34, 8);
+                    break;
+            }
+            
+            // Barre de santé
+            ctx.fillStyle = '#333';
+            ctx.fillRect(boss.x - 10, boss.y - 25, 70, 8);
+            ctx.fillStyle = '#FF0000';
+            ctx.fillRect(boss.x - 10, boss.y - 25, (boss.health / boss.maxHealth) * 70, 8);
+            ctx.strokeStyle = '#FFF';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(boss.x - 10, boss.y - 25, 70, 8);
+            
+            ctx.restore();
+        }
+
+        // Dessiner la barre de santé du joueur
+        function drawPlayerHealth() {
+            ctx.fillStyle = '#333';
+            ctx.fillRect(10, 10, 200, 15);
+            ctx.fillStyle = '#00FF00';
+            ctx.fillRect(10, 10, (player.health / player.maxHealth) * 200, 15);
+            ctx.strokeStyle = '#FFF';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(10, 10, 200, 15);
+            
+            ctx.fillStyle = '#FFF';
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText(`Prince: ${Math.ceil(player.health)}/${player.maxHealth}`, 15, 24);
+        }
+
+        // Afficher le texte de combat
+        function drawCombatText() {
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 20px Arial';
+            ctx.textAlign = 'center';
+            
+            if (player.attacking) {
+                ctx.fillText('ATTAQUE!', canvas.width / 2, 60);
+            }
+            if (player.defending) {
+                ctx.fillText('DÉFENSE!', canvas.width / 2, 60);
+            }
+            if (boss.attacking) {
+                ctx.fillStyle = '#FF0000';
+                ctx.fillText('BOSS ATTAQUE!', canvas.width / 2, 100);
+            }
+        }
+
+        // Logique de combat
+        function handleCombat() {
+            if (boss.turn === 0) {
+                boss.turn = (Math.random() > 0.5) ? 1 : 2;
+            }
+
+            // Dégâts du joueur si attaque
+            if (player.attacking) {
+                const baseDamage = 10 + (game.currentKingdom * 2);
+                const variance = Math.random() * 5 - 2.5;
+                const damage = Math.max(5, baseDamage + variance);
+                
+                if (boss.turn === 1) { // Boss attaque aussi
+                    const bossDamage = 5 + (game.currentKingdom * 1.5);
+                    if (!player.defending) {
+                        player.health -= bossDamage;
+                    } else {
+                        player.health -= bossDamage * 0.3;
+                    }
+                }
+                boss.health -= damage;
+                boss.attacking = true;
+                player.attacking = false;
+            }
+
+            // Défense du joueur
+            if (player.defending) {
+                if (boss.turn === 1) {
+                    const bossDamage = 5 + (game.currentKingdom * 1.5);
+                    player.health -= bossDamage * 0.2;
+                }
+                player.defending = false;
+            }
+
+            // Combat du boss
+            if (boss.turn === 1 && !player.attacking) {
+                const bossDamage = 8 + (game.currentKingdom * 2);
+                if (!player.defending) {
+                    player.health -= bossDamage;
+                } else {
+                    player.health -= bossDamage * 0.3;
+                }
+                boss.attacking = true;
+            }
+
+            boss.turn = (boss.turn === 1) ? 2 : (boss.turn === 2 ? 0 : boss.turn);
+
+            // Vérifier les conditions de fin
+            if (player.health <= 0) {
+                game.lives--;
+                if (game.lives <= 0) {
+                    endGame(false);
+                } else {
+                    nextRound();
+                }
+            }
+
+            if (boss.health <= 0) {
+                nextKingdom();
+            }
+        }
+
+        // Prochain round
+        function nextRound() {
+            player.health = player.maxHealth;
+            boss.health = boss.maxHealth;
+            boss.attacking = false;
+            player.attacking = false;
+            player.defending = false;
+            initPositions();
+            updateInfo();
+        }
+
+        // Prochain royaume
+        function nextKingdom() {
+            game.currentKingdom++;
+            if (game.currentKingdom >= kingdoms.length) {
+                endGame(true);
+            } else {
+                game.lives = 3;
+                player.health = player.maxHealth;
+                boss.health = boss.maxHealth;
+                initPositions();
+                updateInfo();
+            }
+        }
+
+        // Fin du jeu
+        function endGame(won) {
+            game.gameOver = true;
+            game.playerWon = won;
+            const gameOverDiv = document.getElementById('gameOver');
+            const title = document.getElementById('gameOverTitle');
+            const message = document.getElementById('gameOverMessage');
+
+            if (won) {
+                title.textContent = '🎉 VICTOIRE! 🎉';
+                title.style.color = '#00FF00';
+                message.innerHTML = `Le prince a vaincu tous les boss!<br>La princesse est sauvée!<br>Fin du jeu réussi!`;
+            } else {
+                title.textContent = '💀 DÉFAITE 💀';
+                title.style.color = '#FF0000';
+                message.innerHTML = `Le prince a perdu toutes ses vies...<br>La quête s'arrête ici.`;
+            }
+
+            gameOverDiv.style.display = 'block';
+        }
+
+        // Entrée clavier
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (e.key === 'ArrowLeft') {
+                player.attacking = true;
+            }
+            if (e.key === 'ArrowRight') {
+                player.defending = true;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // Boucle de jeu
+        function gameLoop() {
+            // Effacer le canvas
+            ctx.fillStyle = kingdoms[game.currentKingdom].color;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (!game.gameOver) {
+                handleCombat();
+            }
+
+            drawPrince();
+            drawBoss();
+            drawPlayerHealth();
+            drawCombatText();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initialiser le jeu
+        initPositions();
+        updateInfo();
+        gameLoop();
+    </script>
+</body>
+</html>
